@@ -1,0 +1,364 @@
+1. One-to-One Relationship Using Embed Method
+
+Definition: In a one-to-one relationship using the embed method, a document contains another document within it. This is useful when the embedded document is tightly coupled with the parent document and does not need to be queried independently.
+
+Example: Consider a user profile system where each user has a unique profile.
+
+	User Document:
+
+	{
+  	"_id": "user1",
+  	"name": "John Doe",
+  	"email": "john@example.com",
+  	"profile": {
+    	"age": 30,
+    	"address": "123 Main St, Anytown, USA"
+  	}
+	}
+
+	Here, the profile document is embedded within the user document. Since each user has exactly one profile and the profile information is not reused or queried separately, embedding is appropriate.
+
+2. One-to-One Relationship Using Reference Method
+
+Definition: In a one-to-one relationship using the reference method, a document references another document via an ID. This approach is suitable when the referenced document might be large or needs to be queried independently.
+
+Example: Consider a scenario where each user has a unique profile, but the profile is stored in a separate collection for better management.
+
+	User Document:
+
+
+{
+  "_id": "user1",
+  "name": "John Doe",
+  "email": "john@example.com",
+  "profile_id": "profile1"  // Reference to the Profile document
+}
+
+Profile Document:
+
+	{
+  	"_id": "profile1",
+  	"age": 30,
+  	"address": "123 Main St, Anytown, USA"
+	}
+
+	Here, the profile_id field in the user document refers to the _id of the profile document. This setup is useful if the profile information needs to be accessed or modified independently of the user document.
+
+3. One-to-Many Relationship Using Embed Method
+
+Definition: In a one-to-many relationship using the embed method, a single document contains an array of other documents. This is suitable when the number of embedded documents is manageable and they are always accessed together with the parent document.
+
+Example: Consider a blog system where each blog post can have multiple comments.
+
+	Blog Post Document:
+
+
+	{
+  	"_id": "post1",
+  	"title": "My First Blog Post",
+  	"content": "This is the content of the blog post.",
+  	"comments": [
+    	{
+      	"comment_id": "comment1",
+      	"author": "Alice",
+      	"text": "Great post!",
+      	"date": "2024-08-01"
+    	},
+    	{
+      	"comment_id": "comment2",
+      	"author": "Bob",
+      	"text": "Thanks for sharing!",
+      	"date": "2024-08-02"
+    	}
+  	]
+	}
+
+	Here, the comments array is embedded within the post document. This design allows efficient retrieval of comments along with the blog post.
+
+4. One-to-Many Relationship Using Reference Method
+
+Definition: In a one-to-many relationship using the reference method, a parent document references multiple child documents. This approach is useful when the child documents are large or need to be queried independently.
+
+Example: Consider a scenario where each blog post can have multiple comments, and comments are stored in a separate collection.
+
+	Blog Post Document:
+
+{
+  "_id": "post1",
+  "title": "My First Blog Post",
+  "content": "This is the content of the blog post."
+}
+
+Comment Document:
+
+{
+  "_id": "comment1",
+  "post_id": "post1",  // Reference to the Blog Post document
+  "author": "Alice",
+  "text": "Great post!",
+  "date": "2024-08-01"
+},
+{
+  "_id": "comment2",
+  "post_id": "post1",  // Reference to the Blog Post document
+  "author": "Bob",
+  "text": "Thanks for sharing!",
+  "date": "2024-08-02"
+}
+---------------------------------------------------------------------------------------------------------------
+Many to Many:
+
+// Insert Students
+db.students.insertMany([
+    { "_id": "student_1", "name": "Alice", "age": 20 },
+    { "_id": "student_2", "name": "Bob", "age": 22 },
+    { "_id": "student_3", "name": "Charlie", "age": 21 }
+]);
+
+// Insert Courses
+db.courses.insertMany([
+    { "_id": "course_1", "title": "Mathematics", "credits": 3 },
+    { "_id": "course_2", "title": "Computer Science", "credits": 4 },
+    { "_id": "course_3", "title": "History", "credits": 2 }
+]);
+
+// Insert Enrollments
+db.enrollments.insertMany([
+    { "student_id": "student_1", "course_id": "course_1" },
+    { "student_id": "student_1", "course_id": "course_2" },
+    { "student_id": "student_2", "course_id": "course_2" },
+    { "student_id": "student_2", "course_id": "course_3" },
+    { "student_id": "student_3", "course_id": "course_1" },
+    { "student_id": "student_3", "course_id": "course_3" }
+]);
+
+
+Find Courses Enrolled by a Specific Student:
+
+db.enrollments.aggregate([
+    { $match: { "student_id": "student_1" } },
+    { $lookup: {
+        from: "courses",
+        localField: "course_id",
+        foreignField: "_id",
+        as: "course_details"
+    }},
+    { $unwind: "$course_details" },
+    { $project: {
+        "course_details.title": 1,
+        "course_details.credits": 1
+    }}
+]);
+
+
+Find Students Enrolled in a Specific Course:
+
+db.enrollments.aggregate([
+    { $match: { "course_id": "course_2" } },
+    { $lookup: {
+        from: "students",
+        localField: "student_id",
+        foreignField: "_id",
+        as: "student_details"
+    }},
+    { $unwind: "$student_details" },
+    { $project: {
+        "student_details.name": 1,
+        "student_details.age": 1
+    }}
+]);
+
+
+Find All Courses with the Number of Students Enrolled:
+
+db.enrollments.aggregate([
+    { $group: {
+        _id: "$course_id",
+        studentCount: { $sum: 1 }
+    }},
+    { $lookup: {
+        from: "courses",
+        localField: "_id",
+        foreignField: "_id",
+        as: "course_details"
+    }},
+    { $unwind: "$course_details" },
+    { $project: {
+        "course_details.title": 1,
+        "studentCount": 1
+    }}
+]);
+
+
+Find All Students and Their Enrolled Courses:
+
+db.students.aggregate([
+    { $lookup: {
+        from: "enrollments",
+        localField: "_id",
+        foreignField: "student_id",
+        as: "enrollments"
+    }},
+    { $unwind: "$enrollments" },
+    { $lookup: {
+        from: "courses",
+        localField: "enrollments.course_id",
+        foreignField: "_id",
+        as: "course_details"
+    }},
+    { $unwind: "$course_details" },
+    { $project: {
+        "name": 1,
+        "course_details.title": 1
+    }}
+]);
+
+---------------------------------------------------------------------------------------------------------------
+db.createCollection("posts", {
+  validator: {
+    $jsonSchema: {
+      bsonType: "object",
+      required: [ "title", "body" ],
+      properties: {
+        title: {
+          bsonType: "string",
+          description: "Title of post - Required."
+        },
+        body: {
+          bsonType: "string",
+          description: "Body of post - Required."
+        },
+        category: {
+          bsonType: "string",
+          description: "Category of post - Optional."
+        },
+        likes: {
+          bsonType: "int",
+          description: "Post like count. Must be an integer - Optional."
+        },
+        tags: {
+          bsonType: ["string"],
+          description: "Must be an array of strings - Optional."
+        },
+        date: {
+          bsonType: "date",
+          description: "Must be a date - Optional."
+        }
+      }
+    }
+  }
+})
+---------------------------------------------------------------------------------------------------------------
+Real World Problems:
+
+Scenario:
+You are managing an inventory of products. Each product has a unique identifier, name, category, and price. You need to perform operations such as adding new products, updating prices, and querying for products by category.
+
+{
+  "_id": ObjectId,
+  "productId": String,
+  "name": String,
+  "category": String,
+  "price": Number
+}
+
+
+Insert Products:
+db.products.insert_many([
+    {"productId": "P001", "name": "Laptop", "category": "Electronics", "price": 1200},
+    {"productId": "P002", "name": "Smartphone", "category": "Electronics", "price": 800},
+    {"productId": "P003", "name": "Desk Chair", "category": "Furniture", "price": 150}
+])
+
+Update Price:
+db.products.update_one(
+    {"productId": "P002"},
+    {"$set": {"price": 850}}
+)
+
+
+Query by Category:
+db.products.find({"category": "Electronics"})
+
+Scenario:
+You need to store and analyze user activity logs. Each log entry contains a user ID, action type (e.g., login, purchase), and timestamp. You need to find the number of actions by each user within a specific time range.
+
+{
+  "_id": ObjectId,
+  "userId": String,
+  "actionType": String,
+  "timestamp": ISODate
+}
+
+
+Insert Activity Logs:
+db.activityLogs.insert_many([
+    {"userId": "U001", "actionType": "login", "timestamp": ISODate("2024-08-10T08:00:00Z")},
+    {"userId": "U001", "actionType": "purchase", "timestamp": ISODate("2024-08-10T09:00:00Z")},
+    {"userId": "U002", "actionType": "login", "timestamp": ISODate("2024-08-10T09:30:00Z")}
+])
+
+
+Count Actions by User in a Time Range:
+db.activityLogs.aggregate([
+    {
+        "$match": {
+            "timestamp": {"$gte": ISODate("2024-08-10T00:00:00Z"), "$lte": ISODate("2024-08-10T23:59:59Z")}
+        }
+    },
+    {
+        "$group": {
+            "_id": "$userId",
+            "actionCount": {"$sum": 1}
+        }
+    }
+])
+
+
+Scenario:
+You are building a social network where users have a list of friends. You need to find mutual friends between two users to recommend new friends.
+
+{
+  "_id": ObjectId,
+  "userId": String,
+  "friends": [String]  // Array of friend userIds
+}
+
+Insert User Friendships:
+db.users.insert_many([
+    {"userId": "U001", "friends": ["U002", "U003"]},
+    {"userId": "U002", "friends": ["U001", "U003", "U004"]},
+    {"userId": "U003", "friends": ["U001", "U002"]},
+    {"userId": "U004", "friends": ["U002"]}
+])
+
+Find Mutual Friends:
+db.users.aggregate([
+    {
+        "$match": {"userId": "U001"}
+    },
+    {
+        "$lookup": {
+            "from": "users",
+            "localField": "friends",
+            "foreignField": "userId",
+            "as": "userFriends"
+        }
+    },
+    {
+        "$project": {
+            "_id": 0,
+            "userFriends.friends": 1
+        }
+    },
+    {
+        "$unwind": "$userFriends.friends"
+    },
+    {
+        "$group": {
+            "_id": null,
+            "mutualFriends": {"$addToSet": "$userFriends.friends"}
+        }
+    }
+])
+---------------------------------------------------------------------------------------------------------------
